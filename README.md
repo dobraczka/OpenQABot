@@ -3,8 +3,7 @@ This repository contains a minimal example how the REST API of OpenQA(http://ope
 
 # Dependencies
 Use `pip` to install the dependencies:
-`pip install SPARQLWrapper requests`
-`pip install python-telegram-bot --upgrade`
+`pip install SPARQLWrapper requests python-telegram-bot emoji --upgrade`
 
 # Try it
 If you have an telegram account you can just chat with the bot at (t.me/OpenQABot)

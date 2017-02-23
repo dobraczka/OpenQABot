@@ -8,7 +8,7 @@ from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, Rege
 from telegram.error import (TelegramError, Unauthorized, BadRequest, 
                             TimedOut, ChatMigrated, NetworkError)
 
-import answerParser, logging, sys, requests, telegram, re
+import answerParser, logging, sys, requests, telegram, re, thread, time, emoji
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -32,14 +32,31 @@ def start(bot, update):
 
     return QUESTION
 
+def showTickingClock(bot, update):
+    count = 1
+    while resList is None:
+        update.message.reply_text((emoji.emojize(":clock" + str(count) + ":", use_aliases=True)))
+        time.sleep(5)
+        if(count == 12):
+            count = 0
+        count = count + 1
+
 
 def question(bot, update):
     answerContainsPic = False
     answerContainsAbstract = False
     chat_id = update.message.chat_id
+
+    global resList
+    resList = None
+
+    try:
+        thread.start_new_thread(showTickingClock, (bot, update) )
+    except:
+        print "Error: unable to start thread"
+
     r = requests.get(RESTURL + update.message.text)
     logger.info('Question "%s" had answer "%s"' % (update.message.text, r.text)) 
-    global resList
     resList = answerParser.getInfo(r)
     if(len(resList)==0):
         update.message.reply_text("Hmmm... I think I don't know the answer to this one yet...")
@@ -104,6 +121,7 @@ def cancel(bot, update):
 def error(bot, update, error):
     update.message.reply_text('Ooops something went wrong, I\'m sorry!')
     logger.warn('Update "%s" caused error "%s"' % (update, error))
+    start(bot, update)
 
 
 def main():
