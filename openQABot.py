@@ -2,13 +2,16 @@
 # -*- coding: utf-8 -*-
 #
 
-from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove)
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
-                          ConversationHandler)
-from telegram.error import (TelegramError, Unauthorized, BadRequest, 
-                            TimedOut, ChatMigrated, NetworkError)
+"""A telegram bot making use of OpenQA"""
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler
+from telegram.error import TelegramError, Unauthorized, BadRequest, TimedOut, ChatMigrated, NetworkError
+from SPARQLWrapper import SPARQLWrapper, JSON
+from emoji import emojize
 
-import answerParser, logging, sys, requests, telegram, re, thread, time, emoji
+
+
+import logging, sys, requests, telegram, re, thread, time
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -16,10 +19,12 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-global RESTURL, showMePicturesStr, tellMeMoreStr, resList
-RESTURL = "http://sina.aksw.org/api/rest/search?q="
+global RESTURL, showMePicturesStr, tellMeMoreStr, nothingStr, resList, CANCELLED
+RESTURL = "http://localhost:8081/openqa.webserver-v0.0.7-beta-full/api/rest/search?q="
 showMePicturesStr = "Show me a Picture!"
 tellMeMoreStr = "Tell me more!"
+nothingStr = "Nothing"
+CANCELLED = False
 
 
 QUESTION, ASK_USER = range(2)
@@ -32,10 +37,12 @@ def start(bot, update):
 
     return QUESTION
 
+""" Shows a clock emoji going from 1 to 12 while the REST request is being processed. Gets called as seperate thread"""
 def showTickingClock(bot, update):
     count = 1
-    while resList is None:
-        update.message.reply_text((emoji.emojize(":clock" + str(count) + ":", use_aliases=True)))
+    time.sleep(5)
+    while resList is None and CANCELLED is False:
+        update.message.reply_text((emojize(":clock" + str(count) + ":", use_aliases=True)))
         time.sleep(5)
         if(count == 12):
             count = 0
@@ -57,7 +64,7 @@ def question(bot, update):
 
     r = requests.get(RESTURL + update.message.text)
     logger.info('Question "%s" had answer "%s"' % (update.message.text, r.text)) 
-    resList = answerParser.getInfo(r)
+    resList = getInfo(r)
     if(len(resList)==0):
         update.message.reply_text("Hmmm... I think I don't know the answer to this one yet...")
     else:
@@ -70,23 +77,51 @@ def question(bot, update):
                 if("abstract" in res):
                     answerContainsAbstract = True
         if(answerContainsPic and answerContainsAbstract):
-            reply_keyboard=[[showMePicturesStr, tellMeMoreStr]]
+            reply_keyboard=[[showMePicturesStr, tellMeMoreStr, nothingStr]]
         elif(answerContainsPic):
-            reply_keyboard=[[showMePicturesStr]]
+            reply_keyboard=[[showMePicturesStr, nothingStr]]
         elif(answerContainsAbstract):
-            reply_keyboard=[[tellMeMoreStr]]
+            reply_keyboard=[[tellMeMoreStr, nothingStr]]
         else:
             update.message.reply_text('Please ask me something!', reply_markup=ReplyKeyboardRemove())
             return QUESTION
         update.message.reply_text('What do you want me to do with this answer?', reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
         return ASK_USER
 
+"""Runs a sparql query to find thumbnails and/or abstracts"""
+def getInfo(r):
+    print type(r)
+    jsonObject = r.json()
+    resultList = []
+    for i in jsonObject:
+         sparql = SPARQLWrapper("http://dbpedia.org/sparql")
+         sparql.setQuery("""
+                     PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+                     PREFIX dbo: <http://dbpedia.org/ontology/>
+                     SELECT DISTINCT ?label ?abstract ?thumbnail
+                     WHERE { <%s> rdfs:label ?label .
+                            OPTIONAL{<%s> dbo:abstract ?abstract FILTER(LANG(?abstract)='en') } .
+                            OPTIONAL{<%s> dbo:thumbnail ?thumbnail}
+                     FILTER(LANG(?label)='en')
+                     }
+
+         """ % (i['URI_PARAM'], i['URI_PARAM'], i['URI_PARAM']))
+         sparql.setReturnFormat(JSON)
+         results = sparql.query().convert()
+         print "SPARQL RESULT \n"
+         print results
+         resultList.append(results)
+    return resultList
+
+"""Depending wether the answer ressource has a thumbnail or abstract the user can choose which one to see"""
 def askUser(bot, update):
     userAnswer = update.message.text
     if(userAnswer == showMePicturesStr):
         showMePictures(bot, update)
     elif(userAnswer == tellMeMoreStr):
         tellMeMore(bot, update)
+    elif(userAnswer == nothingStr):
+        update.message.reply_text('Oookay')
 
     update.message.reply_text('Please ask another question!', reply_markup=ReplyKeyboardRemove())
     return QUESTION
@@ -110,6 +145,8 @@ def tellMeMore(bot, update):
 
 
 def cancel(bot, update):
+    global CANCELLED
+    CANCELLED = True
     user = update.message.from_user
     logger.info("User %s canceled the conversation." % user.first_name)
     update.message.reply_text('Bye! I hope we can talk again some day.',
@@ -121,7 +158,6 @@ def cancel(bot, update):
 def error(bot, update, error):
     update.message.reply_text('Ooops something went wrong, I\'m sorry!')
     logger.warn('Update "%s" caused error "%s"' % (update, error))
-    start(bot, update)
 
 
 def main():
@@ -137,7 +173,7 @@ def main():
 
         states={
             QUESTION: [MessageHandler(Filters.text, question)],
-            ASK_USER: [RegexHandler('^('+ re.escape(tellMeMoreStr) + '|'+ re.escape(showMePicturesStr) + ')$', askUser)]
+            ASK_USER: [RegexHandler('^('+ re.escape(tellMeMoreStr) + '|'+ re.escape(showMePicturesStr) + '|' + re.escape(nothingStr) + ')$', askUser)]
         },
 
         fallbacks=[CommandHandler('cancel', cancel)]
