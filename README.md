@@ -12,7 +12,7 @@ If you have a telegram account you can just chat with the bot at (https://telegr
 # Examples
 You have to write `/start` to start the conversation with the bot and then you can try to ask questions like:
 
-`Give me the capitol of Germany`
+`Give me the capital of Germany`
 
 `List the children of Margaret Thatcher`
 
