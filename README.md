@@ -14,7 +14,7 @@ You have to write `/start` to start the conversation with the bot and then you c
 
 `Give me the capital of Germany`
 
-`List the children of Margaret Thatcher`
+`Give me the capital of Saxony`
 
 # Usage
 If you want to make your own bot, you need to register a bot and get an API Token from (https://telegram.me/botfather) if you did not already do this.
