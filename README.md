@@ -14,7 +14,7 @@ You have to write `/start` to start the conversation with the bot and then you c
 
 `Give me the capital of Germany`
 
-`Give me the capital of Saxony`
+`List the children of Margaret Thatcher`
 
 # Usage
 If you want to make your own bot, you need to register a bot and get an API Token from (https://telegram.me/botfather) if you did not already do this.
@@ -24,4 +24,4 @@ Run the `openQABot.py` file and provide the API Token as argument:
 `python openQABot.py <TOKEN>`
 
 # Known Issues
-At the moment openQA is not working properly so only a few default queries get back results
+The queries can sometimes take a while
