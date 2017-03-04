@@ -20,7 +20,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 global RESTURL, showMePicturesStr, tellMeMoreStr, nothingStr, resList, CANCELLED
-RESTURL = "http://localhost:8081/openqa.webserver-v0.0.7-beta-full/api/rest/search?q="
+RESTURL = "http://search.openqa.aksw.org/api/rest/search?q="
 showMePicturesStr = "Show me a Picture!"
 tellMeMoreStr = "Tell me more!"
 nothingStr = "Nothing"
@@ -40,12 +40,13 @@ def start(bot, update):
 """ Shows a clock emoji going from 1 to 12 while the REST request is being processed. Gets called as seperate thread"""
 def showTickingClock(bot, update):
     count = 1
-    time.sleep(5)
+    sleeptime = 10
+    time.sleep(sleeptime)
     while resList is None and CANCELLED is False:
         update.message.reply_text((emojize(":clock" + str(count) + ":", use_aliases=True)))
-        time.sleep(5)
+        time.sleep(sleeptime * count)
         if(count == 12):
-            count = 0
+            break
         count = count + 1
 
 
@@ -62,7 +63,16 @@ def question(bot, update):
     except:
         print "Error: unable to start thread"
 
-    r = requests.get(RESTURL + update.message.text)
+    r = None
+    try:
+        r = requests.get(RESTURL + update.message.text)
+    except:
+        global CANCELLED
+        CANCELLED = True
+        update.message.reply_text("Ouch something is wrong with my brain")
+        update.message.reply_text(emojize(":dizzy_face:", use_aliases=True))
+        return QUESTION
+        print "Something went wrong"
     logger.info('Question "%s" had answer "%s"' % (update.message.text, r.text)) 
     resList = getInfo(r)
     if(len(resList)==0):
